@@ -9,23 +9,21 @@ from tqdm import tqdm
 import torch
 from torch.nn.functional import l1_loss as mae
 
-# the target frequency is used to determine the perfect uniform batch of a batch.
-target_frequency = 4
 
-MAX_BATCHES = 500
-EPOCHS = 5
-WORKERS = 4
+target_frequency = 3
+
+EPOCHS = 1
+WORKERS = 0
 DATASET_URI = "./distributions_evaluation_dataset"
-num_classes = 100
-num_samples_per_class = 500
+num_classes = 5
+num_samples_per_class = 10
 BATCH_SIZE = num_classes * target_frequency
 
 
-def create_dataset():
-    if os.path.isdir(DATASET_URI):
-        return
-    print("creating dataset", DATASET_URI)
 
+
+def create_dataset():
+    print("creating dataset", DATASET_URI)
     ds = hub.empty(DATASET_URI, overwrite=True)
     ds.create_tensor("images", dtype=np.float64)
     ds.create_tensor("labels", dtype=np.uint32)
@@ -37,7 +35,7 @@ def create_dataset():
 
 
 
-def get_best_case_batch(num_classes: int):
+def get_best_case_batch():
     """Model performance is optimal when the average batch of batches is fully uniform."""
     values = []
     for c in range(num_classes):
@@ -47,7 +45,7 @@ def get_best_case_batch(num_classes: int):
     return np.array(values, dtype=int)
 
 
-def get_normal_case_batch(num_classes: int):
+def get_normal_case_batch():
     """This is what class batches will look like in the real world."""
     return np.random.randint(0, num_classes, size=BATCH_SIZE, dtype=int)
 
@@ -75,24 +73,22 @@ def plot_batches(batches: List[np.ndarray], titles: List[str], num_classes: int)
 def calculate_frequencies(tensor: torch.Tensor):
     """Calculate the frequencies of each class in the tensor."""
 
-    freq = torch.zeros(num_classes)
+    freq = torch.zeros(num_classes, dtype=int)
     for x in tensor.flatten():
         freq[x] += 1
     return freq
 
 
+freq_T = calculate_frequencies(get_best_case_batch()).float()
 
-def quantify_batches(batches: List[np.ndarray], titles: List[str], target_batch: np.ndarray):
+
+def quantify_batches(batches: List[np.ndarray], titles: List[str]):
     """The mean absolute error of the frequencies between each `batch` in `batches` is calculated with `target_batch` as the target.
     
     Minimum loss for any given batch is 0.
     """
 
     losses = {}
-
-    T = torch.tensor(target_batch)
-    # freq_T = torch.unique(T, return_counts=True)[1].float()
-    freq_T = calculate_frequencies(T)
 
     for batch, title in zip(batches, titles):
         #assert len(batch) == BATCH_SIZE, f"{title} batch length was {len(batch)} but expected {BATCH_SIZE}"
@@ -102,7 +98,7 @@ def quantify_batches(batches: List[np.ndarray], titles: List[str], target_batch:
         # freq_X = torch.unique(X, return_counts=True)[1].float()  # TODO: better way to get frequencies
         freq_X = calculate_frequencies(X)
 
-        loss = mae(freq_X, freq_T).item()
+        loss = mae(freq_X.float(), freq_T).item()
         losses[title] = loss
 
     return losses
@@ -110,11 +106,22 @@ def quantify_batches(batches: List[np.ndarray], titles: List[str], target_batch:
 
 def get_hub_loss(buffer_size: int):
     shuffle = buffer_size > 0
-    return 5
+
+    losses = []
+
+    ds = hub.load(DATASET_URI)
+    ptds = ds.pytorch(num_workers=WORKERS, batch_size=BATCH_SIZE, shuffle=shuffle)
+    for epoch in range(EPOCHS):
+        for _, T in tqdm(ptds, desc=f"hub torch buffer={buffer_size}, epoch={epoch+1}/{EPOCHS}"):
+            loss = quantify_batches([T.int()], ["hub"])["hub"]
+            losses.append(loss)
+
+    return np.mean(losses)
 
 
 def get_numpy_loss():
-    return 1
+    x = get_normal_case_batch()
+    return quantify_batches([x], ["numpy"])["numpy"]
 
 
 
@@ -124,7 +131,7 @@ if __name__ == '__main__':
     buffer_sizes = [0, 1]
 
     hub_shuffled_losses = [get_hub_loss(buffer_size) for buffer_size in buffer_sizes]
-    numpy_losses = [get_numpy_loss() for _ in buffer_sizes]
+    numpy_losses = [get_numpy_loss()] * len(buffer_sizes)
 
     plt.title("pytorch shuffling quality")
 
