@@ -10,13 +10,13 @@ import torch
 from torch.nn.functional import l1_loss as mae
 
 
-target_frequency = 3
+target_frequency = 10
 
 EPOCHS = 1
-WORKERS = 0
+WORKERS = 8
 DATASET_URI = "./distributions_evaluation_dataset"
-num_classes = 5
-num_samples_per_class = 10
+num_classes = 100
+num_samples_per_class = 1000
 BATCH_SIZE = num_classes * target_frequency
 
 
@@ -32,6 +32,7 @@ def create_dataset():
             ds.images.extend(np.ones((num_samples_per_class, 32, 32, 3)))
             ds.labels.extend([label] * num_samples_per_class)
     print("dataset created")
+    return ds
 
 
 
@@ -110,7 +111,7 @@ def get_hub_loss(buffer_size: int):
     losses = []
 
     ds = hub.load(DATASET_URI)
-    ptds = ds.pytorch(num_workers=WORKERS, batch_size=BATCH_SIZE, shuffle=shuffle)
+    ptds = ds.pytorch(num_workers=WORKERS, batch_size=BATCH_SIZE, shuffle=shuffle, buffer_size=buffer_size)
     for epoch in range(EPOCHS):
         for _, T in tqdm(ptds, desc=f"hub torch buffer={buffer_size}, epoch={epoch+1}/{EPOCHS}"):
             loss = quantify_batches([T.int()], ["hub"])["hub"]
@@ -126,9 +127,10 @@ def get_numpy_loss():
 
 
 if __name__ == '__main__':
-    create_dataset()
+    ds = create_dataset()
 
-    buffer_sizes = [0, 1]
+    buffer_sizes = [0, *np.linspace(1, len(ds), 10, dtype=int).tolist()]
+    print("running on buffer sizes", buffer_sizes)
 
     hub_shuffled_losses = [get_hub_loss(buffer_size) for buffer_size in buffer_sizes]
     numpy_losses = [get_numpy_loss()] * len(buffer_sizes)
@@ -136,10 +138,10 @@ if __name__ == '__main__':
     plt.title("pytorch shuffling quality")
 
     plt.plot(buffer_sizes, hub_shuffled_losses, label="hub")
-    plt.plot(buffer_sizes, numpy_losses, label="target")
+    plt.plot(buffer_sizes, numpy_losses, label="target (numpy random uniform)")
 
     plt.legend()
-    plt.xlabel("shuffle buffer (0=unshuffled)")
+    plt.xlabel(f"shuffle buffer -- 0=unshuffled, {len(ds)}=len(ds)")
     plt.ylabel("mean absolute error to uniform distribution")
 
     plt.show()
