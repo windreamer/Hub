@@ -27,6 +27,7 @@ class DatasetQuery:
     def __init__(self, dataset: hub.Dataset, query: str):
         self._dataset = dataset
         self._query = query
+        self._cquery = compile(query, "", "eval")
         self.global_vars: Dict[str, Any] = dict()
         self.cache: Dict[str, np.ndarray] = dict()
         self.locals: Dict[str, Any] = self._export_tensors(dataset)
@@ -38,7 +39,7 @@ class DatasetQuery:
     def _call_eval(self, sample_in: hub.Dataset):
         self.index = sample_in.index  # type: ignore
 
-        return eval(self._query, self.global_vars, self.locals)
+        return eval(self._cquery, self.global_vars, self.locals)
 
     def _export_tensors(self, sample_in):
         bindings: Dict[str, EvalObject] = {"dataset": EvalDataset(self)}
