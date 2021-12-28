@@ -3,6 +3,7 @@ from typing import Callable, List, Sequence
 import hub
 
 from hub.core.io import SampleStreaming
+from hub.core.query.query import DatasetQuery
 from hub.util.compute import get_compute_provider
 from hub.util.dataset import map_tensor_keys
 
@@ -85,5 +86,13 @@ def filter_inplace(
     for i, sample_in in it:
         if filter_function(sample_in):
             index_map.append(i)
+
+    return index_map
+
+
+def query_inplace(dataset: hub.Dataset, query: str, progressbar: bool):
+
+    ds_query = DatasetQuery(dataset, query)
+    index_map = ds_query.execute()
 
     return index_map

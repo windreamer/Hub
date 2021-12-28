@@ -880,19 +880,19 @@ class Dataset:
             >>> dataset.filter(lambda sample: sample.labels.numpy() == 2)
             >>> dataset.filter('labels == 2')
         """
-        from hub.core.query import filter_dataset
+        from hub.core.query import filter_dataset, query_inplace
         from hub.core.query import DatasetQuery
 
         if isinstance(function, str):
-            function = DatasetQuery(self, function)
-
-        return filter_dataset(
-            self,
-            function,
-            num_workers=num_workers,
-            scheduler=scheduler,
-            progressbar=progressbar,
-        )
+            return query_inplace(self, function, progressbar=True)
+        else:
+            return filter_dataset(
+                self,
+                function,
+                num_workers=num_workers,
+                scheduler=scheduler,
+                progressbar=progressbar,
+            )
 
     def _get_total_meta(self):
         """Returns tensor metas all together"""
