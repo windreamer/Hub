@@ -194,9 +194,13 @@ class Pipeline:
 
         tensors = list(target_ds.tensors)
         tensors = [target_ds.tensors[t].key for t in tensors]
+
+        _version_state = dict(version_state.items())
+        del _version_state['full_tensors']
+
         map_inp = zip(
             slices,
-            repeat((storage, group_index, tensors, self, version_state, skip_ok)),
+            repeat((storage, group_index, tensors, self, _version_state, skip_ok)),
         )
         if progressbar:
             desc = get_pbar_description(self.functions)
