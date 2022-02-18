@@ -177,6 +177,10 @@ class LRUCache(StorageProvider):
             self.dirty_keys.add(path)
         else:  # larger than cache, directly send to next layer
             self._forward_value(path, value, True)
+            try:
+                del self.cache_storage[path]
+            except KeyError:
+                pass
 
         self.maybe_flush()
 
