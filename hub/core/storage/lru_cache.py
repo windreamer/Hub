@@ -176,7 +176,7 @@ class LRUCache(StorageProvider):
             self._insert_in_cache(path, value)
             self.dirty_keys.add(path)
         else:  # larger than cache, directly send to next layer
-            self._forward_value(path, value)
+            self._forward_value(path, value, True)
 
         self.maybe_flush()
 

@@ -184,7 +184,8 @@ class Pipeline:
         tensors = list(target_ds.tensors)
         tensors = [target_ds.tensors[t].key for t in tensors]
         group_index = target_ds.group_index
-        version_state = target_ds.version_state
+        version_state = target_ds.version_state.copy()
+        version_state.pop('full_tensors', None)
         args = (storage, group_index, tensors, self, version_state, skip_ok)
         map_inp = zip(slices, repeat(args))
 
